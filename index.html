@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Chat Application</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #loginContainer, #chatContainer {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        #messages {
+            height: 300px;
+            overflow-y: scroll;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        #messageInput {
+            width: 80%;
+            padding: 5px;
+        }
+        #sendButton {
+            width: 18%;
+        }
+    </style>
+</head>
+<body>
+    <div id="loginContainer">
+        <h2>Chat Login</h2>
+        <div>
+            <label for="username">Username:</label>
+            <input type="text" id="username" required>
+        </div>
+        <div>
+            <label for="password">Password:</label>
+            <input type="password" id="password" required>
+        </div>
+        <div>
+            <button onclick="register()">Register</button>
+            <button onclick="login()">Login</button>
+        </div>
+    </div>
+
+    <div id="chatContainer" style="display:none;">
+        <h2>Chat Room</h2>
+        <div id="messages"></div>
+        <input type="text" id="messageInput" placeholder="Type your message...">
+        <button id="sendButton" onclick="sendMessage()">Send</button>
+        <button onclick="disconnect()">Disconnect</button>
+    </div>
+
+    <script>
+        let socket;
+        let username;
+
+        function initWebSocket() {
+            socket = new WebSocket('ws://localhost:6789');
+
+            socket.onopen = () => {
+                console.log('Connected to the server');
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleServerMessage(data);
+            };
+
+            socket.onerror = (error) => {
+                console.error('WebSocket Error:', error);
+                alert('Connection error. Please try again.');
+            };
+
+            socket.onclose = () => {
+                console.log('Connection closed');
+                document.getElementById('loginContainer').style.display = 'block';
+                document.getElementById('chatContainer').style.display = 'none';
+            };
+        }
+
+        function handleServerMessage(data) {
+            const messagesDiv = document.getElementById('messages');
+
+            switch(data.type) {
+                case 'register':
+                    if (data.status === 'success') {
+                        alert('Registration successful. Please login.');
+                    } else {
+                        alert('Registration failed: ' + data.message);
+                    }
+                    break;
+
+                case 'login':
+                    if (data.status === 'success') {
+                        document.getElementById('loginContainer').style.display = 'none';
+                        document.getElementById('chatContainer').style.display = 'block';
+                        appendMessage('<em>Logged in successfully!</em>');
+                    } else {
+                        alert('Login failed: ' + data.message);
+                    }
+                    break;
+
+                case 'message':
+                    appendMessage(`<strong>${data.user}:</strong> ${data.message}`);
+                    break;
+
+                case 'error':
+                    appendMessage(`<em>Error: ${data.message}</em>`);
+                    break;
+            }
+        }
+
+        function register() {
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+
+            if (!usernameInput.value || !passwordInput.value) {
+                alert('Please enter both username and password');
+                return;
+            }
+
+            const data = {
+                action: 'register',
+                username: usernameInput.value,
+                password: passwordInput.value
+            };
+
+            username = usernameInput.value;
+            sendRequest(data);
+        }
+
+        function login() {
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+
+            if (!usernameInput.value || !passwordInput.value) {
+                alert('Please enter both username and password');
+                return;
+            }
+
+            const data = {
+                action: 'login',
+                username: usernameInput.value,
+                password: passwordInput.value
+            };
+
+            username = usernameInput.value;
+            sendRequest(data);
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+
+            if (message) {
+                const data = {
+                    action: 'send',
+                    username: username,
+                    message: message
+                };
+
+                sendRequest(data);
+                messageInput.value = '';
+            }
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.close();
+            }
+        }
+
+        function sendRequest(data) {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                initWebSocket();
+
+                socket.onopen = () => {
+                    socket.send(JSON.stringify(data));
+                };
+            } else {
+                socket.send(JSON.stringify(data));
+            }
+        }
+
+        function appendMessage(message) {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('div');
+            messageElement.innerHTML = message;
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Initialize WebSocket when page is loaded
+        window.onload = initWebSocket;
+    </script>
+</body>
+</html>
